@@ -76,6 +76,46 @@ struct Task {
     auth: Option<BasicAuth>,
 }
 
+impl Task {
+    fn resolve_env_vars(&mut self) {
+        // Resolve environment variables in auth
+        if let Some(auth) = &mut self.auth {
+            if auth.username.starts_with("{{env.") && auth.username.ends_with("}}") {
+                let var = auth
+                    .username
+                    .trim_matches(|c| c == '{' || c == '}')
+                    .strip_prefix("env.")
+                    .unwrap();
+                auth.username = std::env::var(var).unwrap_or_else(|_| auth.username.clone());
+            }
+            if auth.password.starts_with("{{env.") && auth.password.ends_with("}}") {
+                let var = auth
+                    .password
+                    .trim_matches(|c| c == '{' || c == '}')
+                    .strip_prefix("env.")
+                    .unwrap();
+                auth.password = std::env::var(var).unwrap_or_else(|_| auth.password.clone());
+            }
+        }
+
+        // Resolve environment variables in headers
+        for (_, value) in self.headers.iter_mut() {
+            if value.starts_with("{{env.") && value.ends_with("}}") {
+                let var = value
+                    .trim_matches(|c| c == '{' || c == '}')
+                    .strip_prefix("env.")
+                    .unwrap();
+                *value = std::env::var(var).unwrap_or_else(|_| value.clone());
+            }
+        }
+
+        // Resolve environment variables in body
+        if let Some(body) = &mut self.body {
+            resolve_references(body, &HashMap::new());
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 struct BasicAuth {
     username: String,
@@ -117,6 +157,17 @@ fn resolve_references(
         serde_yaml::Value::String(s) => {
             if s.starts_with("{{") && s.ends_with("}}") {
                 let ref_str = s.trim_matches(|c| c == '{' || c == '}');
+                // Handle environment variables first
+                if let Some(env_var) = ref_str.strip_prefix("env.") {
+                    let value = std::env::var(env_var).unwrap_or_else(|_| {
+                        debug!("Environment variable {} not found", env_var);
+                        "".to_string()
+                    });
+                    debug!("Resolved env var {} to '{}'", env_var, value);
+                    *body = serde_yaml::Value::String(value);
+                    return;
+                }
+                // Then handle registered response references
                 debug!("Resolving reference: {}", ref_str);
                 let parts: Vec<&str> = ref_str.split('.').collect();
                 if parts.len() >= 2 {
@@ -168,10 +219,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut results: HashMap<String, Value> = HashMap::new();
     let mut registry: HashMap<String, RegisteredResponse> = HashMap::new();
 
-    for task in wf.tasks {
+    for mut task in wf.tasks {
         if task.kind != "http" {
             continue;
         }
+
+        // Resolve environment variables in the task
+        task.resolve_env_vars();
 
         let task_name = task.name.clone();
         let task_headers = task.headers.clone();
@@ -180,6 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let task_retries = task.retries;
         let task_retry_delay = task.retry_delay;
         let task_expect = task.expect.clone();
+        let task_auth = task.auth.clone();
 
         for dep in &task.depends_on {
             if !results.contains_key(dep) {
@@ -204,7 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Add basic auth if provided
-            if let Some(auth) = &task.auth {
+            if let Some(auth) = &task_auth {
                 let credentials = format!("{}:{}", auth.username, auth.password);
                 let encoded = BASE64.encode(credentials);
                 let auth_header = format!("Basic {}", encoded);
