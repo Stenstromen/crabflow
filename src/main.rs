@@ -1,3 +1,6 @@
+use base64;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use env_logger::Builder;
 use log::{LevelFilter, debug, error, info, trace};
 use serde::Deserialize;
@@ -69,6 +72,14 @@ struct Task {
     expect: Vec<Expect>,
     #[serde(default)]
     register: Option<String>,
+    #[serde(default)]
+    auth: Option<BasicAuth>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct BasicAuth {
+    username: String,
+    password: String,
 }
 
 fn default_retries() -> u32 {
@@ -191,6 +202,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 reqwest::header::HeaderName::from_static("x-crabflow-task"),
                 reqwest::header::HeaderValue::from_str(&task_name).unwrap(),
             );
+
+            // Add basic auth if provided
+            if let Some(auth) = &task.auth {
+                let credentials = format!("{}:{}", auth.username, auth.password);
+                let encoded = BASE64.encode(credentials);
+                let auth_header = format!("Basic {}", encoded);
+                headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(&auth_header).unwrap(),
+                );
+            }
 
             for (k, v) in &task_headers {
                 let name = reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap();
