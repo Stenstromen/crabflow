@@ -1,0 +1,108 @@
+name: example-pipeline
+tasks:
+  - name: fetch-users
+    type: http
+    method: GET
+    url: http://localhost:8080/json
+    retries: 2
+    expect:
+      type: JsonPath
+      path: slideshow.author
+      value: Yours Truly
+
+  - name: process-users
+    type: http
+    method: POST
+    url: http://localhost:8080/post
+    depends_on: [fetch-users]
+    body_type: json
+    body:
+      name: "John"
+      age: 30
+      active: true
+      sub:
+        - name: "John"
+          age: 30
+          active: true
+        - name: "Jane"
+          age: 25
+          active: false
+    expect:
+      type: JsonPath
+      path: "method"
+      value: POST
+    retries: 2
+
+  - name: robots
+    type: http
+    method: GET
+    url: http://localhost:8080/robots.txt
+    retries: 2
+    expect:
+      - type: Raw
+        contains: "User-agent: *"
+      - type: Status
+        code: 200
+
+  - name: 418
+    type: http
+    method: GET
+    url: http://localhost:8080/status/418
+    retries: 2
+    retry_delay: 5
+    expect:
+      - type: Status
+        code: 418
+      - type: Raw
+        contains: "I'm a teapot!"
+
+  - name: urlencoded
+    type: http
+    method: GET
+    url: http://localhost:8080/get
+    retries: 2
+    body_type: form-urlencoded
+    body:
+      foo: "bar"
+    expect:
+      - type: Status
+        code: 200
+      - type: JsonPath
+        path: "args.foo[0]"
+        value: "bar"
+    register: urlencoded
+
+  - name: urlencoded-ref
+    type: http
+    method: POST
+    url: http://localhost:8080/post
+    retries: 2
+    body_type: json
+    body:
+      args: "{{urlencoded.json.args}}"
+      foo: "{{urlencoded.json.args.foo[0]}}"
+
+  - name: auth
+    type: http
+    method: GET
+    url: http://localhost:8080/get
+    retries: 2
+    headers:
+      X-Api-Key: awoa0ShaiyetohPeiwaingoo1yoo1Eik
+    expect:
+      - type: Status
+        code: 200
+
+  - name: basic-auth-example
+    type: http
+    method: GET
+    url: http://localhost:8080/basic-auth/user/123
+    auth:
+      username: "user"
+      password: "{{env.PASSWD}}"
+    expect:
+      - type: Status
+        code: 200
+      - type: JsonPath
+        path: "authorized"
+        value: "true"
