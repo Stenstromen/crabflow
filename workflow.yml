@@ -96,7 +96,7 @@ tasks:
   - name: basic-auth-example
     type: http
     method: GET
-    url: http://localhost:8080/basic-auth/user/123
+    url: http://localhost:8080/basic-auth/user/{{env.PASSWD}}
     auth:
       username: "user"
       password: "{{env.PASSWD}}"

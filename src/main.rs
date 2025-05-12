@@ -79,13 +79,24 @@ struct Task {
 impl Task {
     fn resolve_env_vars(&mut self) {
         // Resolve environment variables in URL
-        if self.url.starts_with("{{env.") && self.url.ends_with("}}") {
-            let var = self.url
-                .trim_matches(|c| c == '{' || c == '}')
-                .strip_prefix("env.")
-                .unwrap();
-            self.url = std::env::var(var).unwrap_or_else(|_| self.url.clone());
+        let mut url = self.url.clone();
+        let mut start = 0;
+        while let Some(pos) = url[start..].find("{{env.") {
+            let start_pos = start + pos;
+            if let Some(end_pos) = url[start_pos..].find("}}") {
+                let end_pos = start_pos + end_pos + 2; // +2 for the closing }}
+                let var = url[start_pos + 6..end_pos - 2].to_string(); // 6 is length of "{{env."
+                let value = std::env::var(&var).unwrap_or_else(|_| {
+                    debug!("Environment variable {} not found", var);
+                    "".to_string()
+                });
+                url = url[..start_pos].to_string() + &value + &url[end_pos..];
+                start = start_pos + value.len();
+            } else {
+                break;
+            }
         }
+        self.url = url;
 
         // Resolve environment variables in auth
         if let Some(auth) = &mut self.auth {
