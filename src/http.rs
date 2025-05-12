@@ -33,7 +33,7 @@ pub async fn execute_task(
 
         headers.insert(
             reqwest::header::HeaderName::from_static("user-agent"),
-            reqwest::header::HeaderValue::from_str("crabflow/0.0.0").unwrap()
+            reqwest::header::HeaderValue::from_str(&format!("crabflow/{}", env!("CARGO_PKG_VERSION"))).unwrap()
         );
 
         if log::log_enabled!(log::Level::Debug) || log::log_enabled!(log::Level::Trace) {
