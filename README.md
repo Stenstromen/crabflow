@@ -5,6 +5,10 @@ Crabflow is a powerful tool for running REST workflows. It allows you to define 
 - [Crabflow 🦀](#crabflow-)
   - [Features ✨](#features-)
   - [Installation 📥](#installation-)
+    - [Homebrew (MacOS/Linux (x86\_64) - x86\_64/arm64)](#homebrew-macoslinux-x86_64---x86_64arm64)
+    - [Podman (Linux x86\_64)](#podman-linux-x86_64)
+    - [Download and Run Binary](#download-and-run-binary)
+    - [Build and Run Binary](#build-and-run-binary)
   - [Usage 🚀](#usage-)
   - [Workflow Configuration ⚙️](#workflow-configuration-️)
     - [Task Configuration](#task-configuration)
@@ -26,8 +30,33 @@ Crabflow is a powerful tool for running REST workflows. It allows you to define 
 
 ## Installation 📥
 
+### Homebrew (MacOS/Linux (x86_64) - x86_64/arm64)
+
 ```bash
-TBD
+brew install stenstromen/tap/crabflow
+```
+
+### Podman (Linux x86_64)
+
+```bash
+podman run --rm 
+-e PASSWD=123 \
+-e X_API_KEY=123 \
+-e FOO=bar \
+-v /path/to/workflow.yaml:/data/workflow.yaml:ro \
+ghcr.io/stenstromen/crabflow:latest /crabflow /data/workflow.yaml
+```
+
+### Download and Run Binary
+
+- For **MacOS** and **Linux**: Checkout and download the latest binary from [Releases page](https://github.com/Stenstromen/crabflow/releases/latest/)
+- For **Windows**: Build the binary yourself.
+
+### Build and Run Binary
+
+```bash
+cargo build --release
+./target/release/crabflow
 ```
 
 ## Usage 🚀
