@@ -1,19 +1,19 @@
 use base64;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use log::{debug, error, info, trace};
+use log::{ debug, error, info, trace };
 use reqwest;
 use serde_json::Value;
 use std::collections::HashMap;
-use tokio::time::{Duration, sleep};
+use tokio::time::{ Duration, sleep };
 
-use crate::types::{Task, RegisteredResponse, Expect};
+use crate::types::{ Task, RegisteredResponse, Expect };
 use crate::resolve::resolve_references;
 
 pub async fn execute_task(
     task: &mut Task,
     client: &reqwest::Client,
-    registry: &HashMap<String, RegisteredResponse>,
+    registry: &HashMap<String, RegisteredResponse>
 ) -> Result<(Value, String), Box<dyn std::error::Error>> {
     let task_name = task.name.clone();
     let task_headers = task.headers.clone();
@@ -33,12 +33,15 @@ pub async fn execute_task(
 
         headers.insert(
             reqwest::header::HeaderName::from_static("user-agent"),
-            reqwest::header::HeaderValue::from_str("crabflow/0.0.0").unwrap(),
+            reqwest::header::HeaderValue::from_str("crabflow/0.0.0").unwrap()
         );
-        headers.insert(
-            reqwest::header::HeaderName::from_static("x-crabflow-task"),
-            reqwest::header::HeaderValue::from_str(&task_name).unwrap(),
-        );
+
+        if log::log_enabled!(log::Level::Debug) || log::log_enabled!(log::Level::Trace) {
+            headers.insert(
+                reqwest::header::HeaderName::from_static("x-crabflow-task"),
+                reqwest::header::HeaderValue::from_str(&task_name).unwrap()
+            );
+        }
 
         // Add basic auth if provided
         if let Some(auth) = &task_auth {
@@ -47,7 +50,7 @@ pub async fn execute_task(
             let auth_header = format!("Basic {}", encoded);
             headers.insert(
                 reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(&auth_header).unwrap(),
+                reqwest::header::HeaderValue::from_str(&auth_header).unwrap()
             );
         }
 
@@ -58,9 +61,7 @@ pub async fn execute_task(
         }
 
         debug!("Request headers: {:?}", headers);
-        let mut req = client
-            .request(task.method.parse()?, &task.url)
-            .headers(headers);
+        let mut req = client.request(task.method.parse()?, &task.url).headers(headers);
         trace!("Request URL: {}", task.url);
         trace!("Request method: {}", task.method);
 
@@ -76,12 +77,11 @@ pub async fn execute_task(
             match body_type {
                 crate::types::BodyType::Json => {
                     // Convert YAML to JSON string
-                    let body_json =
-                        serde_json::to_string(&serde_json::to_value(body_val).unwrap())?;
+                    let body_json = serde_json::to_string(
+                        &serde_json::to_value(body_val).unwrap()
+                    )?;
                     debug!("Request body (JSON): {}", body_json);
-                    req = req
-                        .header("Content-Type", "application/json")
-                        .body(body_json);
+                    req = req.header("Content-Type", "application/json").body(body_json);
                 }
                 crate::types::BodyType::FormUrlencoded => {
                     let form_data = match body_val {
@@ -116,7 +116,9 @@ pub async fn execute_task(
                                     .join("&")
                             }
                         }
-                        _ => return Err("Form URL encoded body must be a key-value map".into()),
+                        _ => {
+                            return Err("Form URL encoded body must be a key-value map".into());
+                        }
                     };
 
                     if !form_data.is_empty() {
@@ -142,7 +144,9 @@ pub async fn execute_task(
                                 form = form.text(key, value);
                             }
                         }
-                        _ => return Err("Multipart form body must be a key-value map".into()),
+                        _ => {
+                            return Err("Multipart form body must be a key-value map".into());
+                        }
                     }
                     debug!("Request body (multipart): {:?}", form);
                     req = req.multipart(form);
@@ -171,7 +175,9 @@ pub async fn execute_task(
                             if status_code != *code {
                                 error!(
                                     "Task `{}` failed: expected status {} but got {}",
-                                    task_name, code, status
+                                    task_name,
+                                    code,
+                                    status
                                 );
                                 all_expectations_met = false;
                                 break;
@@ -185,8 +191,10 @@ pub async fn execute_task(
                                 if part.contains('[') && part.contains(']') {
                                     // Handle array indexing
                                     let (key, index) = part.split_once('[').unwrap();
-                                    let index =
-                                        index.trim_end_matches(']').parse::<usize>().unwrap();
+                                    let index = index
+                                        .trim_end_matches(']')
+                                        .parse::<usize>()
+                                        .unwrap();
                                     current = &current[key][index];
                                 } else {
                                     current = &current[part];
@@ -196,14 +204,14 @@ pub async fn execute_task(
                                 Value::Null => "null".to_string(),
                                 _ => current.to_string().trim_matches('"').to_string(),
                             };
-                            debug!(
-                                "JSON path {}: expected {}, got {}",
-                                path, value, current_str
-                            );
+                            debug!("JSON path {}: expected {}, got {}", path, value, current_str);
                             if current_str != *value {
                                 error!(
                                     "Task `{}` failed: expected {} = {} but got {}",
-                                    task_name, path, value, current_str
+                                    task_name,
+                                    path,
+                                    value,
+                                    current_str
                                 );
                                 all_expectations_met = false;
                                 break;
@@ -214,7 +222,8 @@ pub async fn execute_task(
                             if !text.contains(contains) {
                                 error!(
                                     "Task `{}` failed: response does not contain '{}'",
-                                    task_name, contains
+                                    task_name,
+                                    contains
                                 );
                                 all_expectations_met = false;
                                 break;
@@ -227,10 +236,7 @@ pub async fn execute_task(
                     if attempt > task_retries {
                         break;
                     }
-                    info!(
-                        "Retrying `{}` in {} seconds...",
-                        task_name, task_retry_delay
-                    );
+                    info!("Retrying `{}` in {} seconds...", task_name, task_retry_delay);
                     sleep(Duration::from_secs(task_retry_delay)).await;
                     continue;
                 }
@@ -240,10 +246,7 @@ pub async fn execute_task(
                     .iter()
                     .any(|e| matches!(e, Expect::Status { .. }));
                 if has_status_expectation {
-                    info!(
-                        "Task `{}` succeeded with expected status {}",
-                        task_name, status
-                    );
+                    info!("Task `{}` succeeded with expected status {}", task_name, status);
                     let json = serde_json::json!({ "status": status.as_u16() });
                     return Ok((json, text));
                 }
@@ -251,28 +254,30 @@ pub async fn execute_task(
                 // For other cases, check if status is successful
                 if status.is_success() {
                     // Only try to parse as JSON if we're not using Raw expectation
-                    let json: Value =
-                        if task_expect.iter().any(|e| matches!(e, Expect::Raw { .. })) {
-                            // For Raw expectations, create a simple JSON object with the text
-                            serde_json::json!({ "text": text })
-                        } else {
-                            match serde_json::from_str(&text) {
-                                Ok(json) => json,
-                                Err(e) => {
-                                    error!("Failed to parse response as JSON: {}", e);
-                                    error!("Response text: {}", text);
-                                    if attempt > task_retries {
-                                        break;
-                                    }
-                                    info!(
-                                        "Retrying `{}` in {} seconds...",
-                                        task_name, task_retry_delay
-                                    );
-                                    sleep(Duration::from_secs(task_retry_delay)).await;
-                                    continue;
+                    let json: Value = if
+                        task_expect.iter().any(|e| matches!(e, Expect::Raw { .. }))
+                    {
+                        // For Raw expectations, create a simple JSON object with the text
+                        serde_json::json!({ "text": text })
+                    } else {
+                        match serde_json::from_str(&text) {
+                            Ok(json) => json,
+                            Err(e) => {
+                                error!("Failed to parse response as JSON: {}", e);
+                                error!("Response text: {}", text);
+                                if attempt > task_retries {
+                                    break;
                                 }
+                                info!(
+                                    "Retrying `{}` in {} seconds...",
+                                    task_name,
+                                    task_retry_delay
+                                );
+                                sleep(Duration::from_secs(task_retry_delay)).await;
+                                continue;
                             }
-                        };
+                        }
+                    };
                     info!("Task `{}` succeeded", task_name);
                     return Ok((json, text));
                 } else {
@@ -281,10 +286,7 @@ pub async fn execute_task(
                     if attempt > task_retries {
                         break;
                     }
-                    info!(
-                        "Retrying `{}` in {} seconds...",
-                        task_name, task_retry_delay
-                    );
+                    info!("Retrying `{}` in {} seconds...", task_name, task_retry_delay);
                     sleep(Duration::from_secs(task_retry_delay)).await;
                 }
             }
@@ -293,10 +295,7 @@ pub async fn execute_task(
                 if attempt > task_retries {
                     break;
                 }
-                info!(
-                    "Retrying `{}` in {} seconds...",
-                    task_name, task_retry_delay
-                );
+                info!("Retrying `{}` in {} seconds...", task_name, task_retry_delay);
                 sleep(Duration::from_secs(task_retry_delay)).await;
             }
         }
@@ -308,4 +307,4 @@ pub async fn execute_task(
     }
 
     Err("Task failed after all retries".into())
-} 
+}
