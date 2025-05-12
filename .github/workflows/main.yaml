@@ -100,3 +100,88 @@ jobs:
             ./artifacts/crabflow_Darwin_x86_64.tar.gz/crabflow_Darwin_x86_64.tar.gz
             ./artifacts/crabflow_Darwin_arm64.tar.gz/crabflow_Darwin_arm64.tar.gz
             ./artifacts/crabflow_Linux_x86_64.tar.gz/crabflow_Linux_x86_64.tar.gz
+
+  homebrew-tap:
+    needs: [build, checksum, upload-release-assets]
+    runs-on: ubuntu-latest
+    env:
+      VERSIONTAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Checkout homebrew-tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: stenstromen/homebrew-tap
+          token: ${{ secrets.GO_RELEASER_GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Download checksum file
+        uses: actions/download-artifact@v4
+        with:
+          name: crabflow_${{ env.VERSIONTAG }}_checksums.txt
+          path: .
+
+      - name: Create Homebrew Formula
+        run: |
+          REPO_NAME="crabflow"
+          REPO_URL="https://github.com/Stenstromen/${REPO_NAME}"
+          FORMULA_PATH="homebrew-tap/Formula/${REPO_NAME}.rb"
+          CHECKSUM_FILE="crabflow_${{ env.VERSIONTAG }}_checksums.txt"
+
+          cat > "${FORMULA_PATH}" << EOF
+          # typed: false
+          # frozen_string_literal: true
+          class Crabflow < Formula
+            desc "Fetch Current Local Outside Temperature In the Terminal"
+            homepage "${REPO_URL}"
+            version "${VERSIONTAG}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${REPO_URL}/releases/download/${VERSIONTAG}/${REPO_NAME}_Darwin_arm64.tar.gz"
+                sha256 "$(grep 'crabflow_Darwin_arm64.tar.gz' $CHECKSUM_FILE | awk '{print $1}')"
+
+                def install
+                  bin.install "${REPO_NAME}"
+                end
+              end
+              if Hardware::CPU.intel?
+                url "${REPO_URL}/releases/download/${VERSIONTAG}/${REPO_NAME}_Darwin_x86_64.tar.gz"
+                sha256 "$(grep 'crabflow_Darwin_x86_64.tar.gz' $CHECKSUM_FILE | awk '{print $1}')"
+
+                def install
+                  bin.install "${REPO_NAME}"
+                end
+
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
+                url "${REPO_URL}/releases/download/${VERSIONTAG}/${REPO_NAME}_Linux_arm64.tar.gz"
+                sha256 "$(grep 'crabflow_Linux_arm64.tar.gz' $CHECKSUM_FILE | awk '{print $1}')"
+
+                def install
+                  bin.install "${REPO_NAME}"
+                end
+              end
+              if Hardware::CPU.intel?
+                url "${REPO_URL}/releases/download/${VERSIONTAG}/${REPO_NAME}_Linux_x86_64.tar.gz"
+                sha256 "$(grep 'crabflow_Linux_x86_64.tar.gz' $CHECKSUM_FILE | awk '{print $1}')"
+
+                def install
+                  bin.install "${REPO_NAME}"
+                end
+
+              end
+            end
+          end
+          EOF
+
+      - name: Commit and Push Homebrew Formula
+        run: |
+          cd homebrew-tap
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add Formula/crabflow.rb
+          git commit -m "Update crabflow formula for version $VERSIONTAG"
+          git push
