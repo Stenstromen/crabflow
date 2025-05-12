@@ -40,7 +40,7 @@ tasks:
     retries: 2
     expect:
       - type: Raw
-        contains: "User-agent: *"
+        contains: "{{env.ROBOTS_TXT}}"
       - type: Status
         code: 200
 
@@ -63,13 +63,13 @@ tasks:
     retries: 2
     body_type: form-urlencoded
     body:
-      foo: "bar"
+      foo: "{{env.FOO}}"
     expect:
       - type: Status
         code: 200
       - type: JsonPath
         path: "args.foo[0]"
-        value: "bar"
+        value: "{{env.FOO}}"
     register: urlencoded
 
   - name: urlencoded-ref
@@ -88,10 +88,13 @@ tasks:
     url: http://localhost:8080/get
     retries: 2
     headers:
-      X-Api-Key: awoa0ShaiyetohPeiwaingoo1yoo1Eik
+      X-Api-Key: "{{env.X_API_KEY}}"
     expect:
       - type: Status
         code: 200
+      - type: JsonPath
+        path: headers.X-Api-Key[0]
+        value: "{{env.X_API_KEY}}"
 
   - name: basic-auth-example
     type: http

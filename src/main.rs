@@ -129,6 +129,31 @@ impl Task {
             }
         }
 
+        // Resolve environment variables in expect conditions
+        for expect in &mut self.expect {
+            match expect {
+                Expect::Raw { contains } => {
+                    if contains.starts_with("{{env.") && contains.ends_with("}}") {
+                        let var = contains
+                            .trim_matches(|c| c == '{' || c == '}')
+                            .strip_prefix("env.")
+                            .unwrap();
+                        *contains = std::env::var(var).unwrap_or_else(|_| contains.clone());
+                    }
+                }
+                Expect::JsonPath { value, .. } => {
+                    if value.starts_with("{{env.") && value.ends_with("}}") {
+                        let var = value
+                            .trim_matches(|c| c == '{' || c == '}')
+                            .strip_prefix("env.")
+                            .unwrap();
+                        *value = std::env::var(var).unwrap_or_else(|_| value.clone());
+                    }
+                }
+                Expect::Status { .. } => {} // No environment variables in status codes
+            }
+        }
+
         // Resolve environment variables in body
         if let Some(body) = &mut self.body {
             resolve_references(body, &HashMap::new());
