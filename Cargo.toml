@@ -2,6 +2,11 @@
 name = "crabflow"
 version = "0.0.0"
 edition = "2024"
+readme = "README.md"
+rust-version = "1.86.0"
+homepage = "https://github.com/stenstromen/crabflow"
+repository = "https://github.com/stenstromen/crabflow"
+description = "A tool for running REST workflows."
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
@@ -12,3 +17,9 @@ reqwest = {version = "0.12.15", features = ["json", "multipart"]}
 log = "0.4.27"
 env_logger = "0.11.8"
 base64 = "0.22.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
