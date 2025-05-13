@@ -12,7 +12,7 @@ description = "A tool for running REST workflows."
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9.34"
-tokio = {version = "1.45.0", features = ["full"]}
+tokio = {version = "1.45.0", features = ["full", "fs"]}
 reqwest = {version = "0.12.15", features = ["json", "multipart"]}
 log = "0.4.27"
 env_logger = "0.11.8"

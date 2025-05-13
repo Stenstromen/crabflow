@@ -5,6 +5,8 @@ use log::{debug, error, info, trace};
 use reqwest;
 use serde_json::Value;
 use std::collections::HashMap;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tokio::time::{Duration, sleep};
 
 use crate::resolve::resolve_references;
@@ -168,6 +170,41 @@ pub async fn execute_task(
             Ok(r) => {
                 let status = r.status();
                 let headers = r.headers().clone();
+
+                // Check if we should save as file
+                if let Some(save_path) = &task.save_as {
+                    // Get content type to check if it's a stream
+                    let content_type = headers
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("");
+
+                    // If it's a stream, binary content, or an image, save as file
+                    if content_type.contains("stream")
+                        || content_type.contains("octet-stream")
+                        || content_type.starts_with("image/")
+                    {
+                        let mut file = File::create(save_path).await?;
+                        let bytes = r.bytes().await?;
+                        file.write_all(&bytes).await?;
+
+                        // Create a JSON response with file info
+                        let json = serde_json::json!({
+                            "status": status.as_u16(),
+                            "saved_as": save_path,
+                            "content_type": content_type,
+                            "size": bytes.len()
+                        });
+
+                        info!(
+                            "Task `{}` succeeded and saved response to {}",
+                            task_name, save_path
+                        );
+                        return Ok((json, format!("Response saved to {}", save_path)));
+                    }
+                }
+
+                // Handle regular responses as before
                 let text = r.text().await?;
                 debug!("Response status: {}", status);
                 debug!("Response body: {}", text);

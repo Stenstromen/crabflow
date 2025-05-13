@@ -68,6 +68,8 @@ pub struct Task {
     pub register: Option<String>,
     #[serde(default)]
     pub auth: Option<BasicAuth>,
+    #[serde(default)]
+    pub save_as: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -89,4 +91,4 @@ pub struct RegisteredResponse {
     pub json: Value,
     #[allow(dead_code)]
     pub text: String,
-} 
+}
