@@ -1,0 +1,26 @@
+name: ai-pipeline
+tasks:
+  - name: random-quote
+    type: http
+    method: GET
+    url: https://stenstromen.se/api/quotes/random
+    retries: 2
+    expect:
+      - type: Status
+        code: 200
+    register: randomquote
+
+  - name: stable-diffusion-xl-lightning
+    type: http
+    method: POST
+    url: https://api.cloudflare.com/client/v4/accounts/{{env.CLOUDFLARE_ACCOUNT_ID}}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning
+    headers:
+      Authorization: "{{env.CLOUDFLARE_API_KEY}}"
+      Accept: "image/png"
+    body_type: json
+    body:
+      prompt: "{{randomquote.json.quote}}"
+    save_as: "./downloaded_file.png"
+    expect:
+      type: Status
+      code: 200

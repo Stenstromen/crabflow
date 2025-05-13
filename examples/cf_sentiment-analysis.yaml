@@ -1,0 +1,25 @@
+name: ai-pipeline
+tasks:
+  - name: random-quote
+    type: http
+    method: GET
+    url: https://stenstromen.se/api/quotes/random
+    retries: 2
+    expect:
+      - type: Status
+        code: 200
+    register: randomquote
+
+  - name: sentiment-analysis
+    type: http
+    depends_on: [random-quote]
+    headers:
+      Authorization: "{{env.CLOUDFLARE_API_KEY}}"
+    method: POST
+    url: https://api.cloudflare.com/client/v4/accounts/{{env.CLOUDFLARE_ACCOUNT_ID}}/ai/run/@cf/huggingface/distilbert-sst-2-int8
+    body_type: json
+    body:
+      text: "{{randomquote.json.quote}}"
+    expect:
+      type: Status
+      code: 200
