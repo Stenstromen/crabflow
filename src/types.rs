@@ -48,7 +48,9 @@ pub struct Task {
     pub name: String,
     #[serde(rename = "type")]
     pub kind: String,
+    #[serde(default)]
     pub method: String,
+    #[serde(default)]
     pub url: String,
     #[serde(default)]
     pub headers: HashMap<String, String>,
@@ -70,6 +72,8 @@ pub struct Task {
     pub auth: Option<BasicAuth>,
     #[serde(default)]
     pub save_as: Option<String>,
+    #[serde(default)]
+    pub variables: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

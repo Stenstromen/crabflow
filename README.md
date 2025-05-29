@@ -114,6 +114,11 @@ tasks:
       - type: JsonPath
         path: "name"
         value: "John Doe"
+
+  - name: display-user
+    type: display
+    variables:
+      - new_user
 ```
 
 ### Task Configuration
